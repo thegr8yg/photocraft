@@ -3471,3 +3471,17 @@ cameraRaw	Roughness	Chropowatość
 	Front Image	Obraz na wierzchu
 	Search settings…	Szukaj ustawień…
 	No matching settings	Brak pasujących ustawień
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Modele lokalne…
+	Local Models	Modele lokalne
+	Check setup	Sprawdź konfigurację
+	Status	Stan
+	Press Check setup to test these settings.	Kliknij „Sprawdź konfigurację”, aby przetestować te ustawienia.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa działa na tym komputerze przy użyciu ONNX Runtime. Zobacz docs/local-models.md.
+	Classical (patch completion)	Klasyczna (uzupełnianie łatami)
+	LaMa (neural model, runs locally)	LaMa (model neuronowy, działa lokalnie)
+	Device	Urządzenie
+	LaMa Model	Model LaMa
+	LaMa SHA-256	SHA-256 modelu LaMa
+	ONNX Runtime Library	Biblioteka ONNX Runtime

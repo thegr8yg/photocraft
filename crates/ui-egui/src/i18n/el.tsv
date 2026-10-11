@@ -3560,3 +3560,17 @@ fontWeight	Thin	Πολύ λεπτά
 	Front Image	Μπροστινή εικόνα
 	Search settings…	Αναζήτηση ρυθμίσεων…
 	No matching settings	Δεν βρέθηκαν ρυθμίσεις
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Τοπικά μοντέλα…
+	Local Models	Τοπικά μοντέλα
+	Check setup	Έλεγχος ρύθμισης
+	Status	Κατάσταση
+	Press Check setup to test these settings.	Πατήστε «Έλεγχος ρύθμισης» για να δοκιμάσετε αυτές τις ρυθμίσεις.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	Το LaMa εκτελείται σε αυτόν τον υπολογιστή με το ONNX Runtime. Δείτε docs/local-models.md.
+	Classical (patch completion)	Κλασική (συμπλήρωση με τμήματα)
+	LaMa (neural model, runs locally)	LaMa (νευρωνικό μοντέλο, εκτελείται τοπικά)
+	Device	Συσκευή
+	LaMa Model	Μοντέλο LaMa
+	LaMa SHA-256	SHA-256 του LaMa
+	ONNX Runtime Library	Βιβλιοθήκη ONNX Runtime

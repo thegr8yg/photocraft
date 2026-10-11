@@ -2857,3 +2857,18 @@ fontWeight	Italic	Miring
 	Front Image	Gambar Depan
 	Search settings…	Cari pengaturan…
 	No matching settings	Tidak ada pengaturan yang cocok
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Model Lokal…
+	Local Models	Model Lokal
+	Check setup	Periksa penyiapan
+	Status	Status
+	Press Check setup to test these settings.	Tekan “Periksa penyiapan” untuk menguji pengaturan ini.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa berjalan di komputer ini dengan ONNX Runtime. Lihat docs/local-models.md.
+	Classical (patch completion)	Klasik (pelengkapan patch)
+	LaMa (neural model, runs locally)	LaMa (model saraf, berjalan secara lokal)
+	Device	Perangkat
+	LaMa Model	Model LaMa
+	LaMa SHA-256	SHA-256 LaMa
+	ONNX Runtime Library	Pustaka ONNX Runtime
+	Content-Aware Fill	Isi Content-Aware

@@ -2737,3 +2737,18 @@ fontWeight	Italic	Курсив
 	Rasterize Layer Style	Растрировать стиль слоя
 	Search settings…	Поиск настроек…
 	No matching settings	Нет подходящих настроек
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Локальные модели…
+	Local Models	Локальные модели
+	Check setup	Проверить настройку
+	Status	Состояние
+	Press Check setup to test these settings.	Нажмите «Проверить настройку», чтобы проверить эти параметры.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa работает на этом компьютере через ONNX Runtime. См. docs/local-models.md.
+	Classical (patch completion)	Классический (заполнение по фрагментам)
+	LaMa (neural model, runs locally)	LaMa (нейросетевая модель, работает локально)
+	Device	Устройство
+	LaMa Model	Модель LaMa
+	LaMa SHA-256	SHA-256 для LaMa
+	ONNX Runtime Library	Библиотека ONNX Runtime
+	Content-Aware Fill	Заливка с учётом содержимого

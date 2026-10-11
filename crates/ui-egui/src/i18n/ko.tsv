@@ -3031,3 +3031,17 @@ fontWeight	Italic	기울임
 	Front Image	전면 이미지
 	Search settings…	설정 검색…
 	No matching settings	일치하는 설정 없음
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	로컬 모델…
+	Local Models	로컬 모델
+	Check setup	설정 확인
+	Status	상태
+	Press Check setup to test these settings.	‘설정 확인’을 눌러 이 설정을 테스트하세요.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa는 이 컴퓨터에서 ONNX Runtime으로 실행됩니다. docs/local-models.md를 참고하세요.
+	Classical (patch completion)	클래식(패치 채우기)
+	LaMa (neural model, runs locally)	LaMa(신경망 모델, 로컬에서 실행)
+	Device	장치
+	LaMa Model	LaMa 모델
+	LaMa SHA-256	LaMa SHA-256
+	ONNX Runtime Library	ONNX Runtime 라이브러리

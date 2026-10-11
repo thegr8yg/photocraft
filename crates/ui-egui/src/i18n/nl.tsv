@@ -3630,3 +3630,17 @@ cameraRaw	Whites	Witten
 	Search settings…	Instellingen zoeken…
 	No matching settings	Geen overeenkomende instellingen
 	PhotoCraft — Screen Color Picker	PhotoCraft — Schermkleurkiezer
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Lokale modellen…
+	Local Models	Lokale modellen
+	Check setup	Configuratie controleren
+	Status	Status
+	Press Check setup to test these settings.	Klik op ‘Configuratie controleren’ om deze instellingen te testen.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa draait op deze computer met ONNX Runtime. Zie docs/local-models.md.
+	Classical (patch completion)	Klassiek (patchaanvulling)
+	LaMa (neural model, runs locally)	LaMa (neuraal model, draait lokaal)
+	Device	Apparaat
+	LaMa Model	LaMa-model
+	LaMa SHA-256	LaMa SHA-256
+	ONNX Runtime Library	ONNX Runtime-bibliotheek

@@ -2460,3 +2460,18 @@ fontWeight	Italic	斜体
 	Front Image	前面的图像
 	Search settings…	搜索设置…
 	No matching settings	没有匹配的设置
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	本地模型…
+	Local Models	本地模型
+	Check setup	检查设置
+	Status	状态
+	Press Check setup to test these settings.	点击“检查设置”以测试这些设置。
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa 通过 ONNX Runtime 在此电脑上运行。参见 docs/local-models.md。
+	Classical (patch completion)	经典（图块补全）
+	LaMa (neural model, runs locally)	LaMa（神经网络模型，本地运行）
+	Device	设备
+	LaMa Model	LaMa 模型
+	LaMa SHA-256	LaMa SHA-256
+	ONNX Runtime Library	ONNX Runtime 库
+	Content-Aware Fill	内容识别填充
