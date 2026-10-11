@@ -27,7 +27,7 @@ pub use error::{MlError, Result};
 pub use inpaint::{InpaintModel, Options, Output, Region, inpaint};
 pub use manifest::{FileInfo, ModelSpec};
 #[cfg(all(feature = "onnx", not(target_arch = "wasm32")))]
-pub use onnx::{Device, OrtLama};
+pub use onnx::{Device, OptLevel, OrtLama, RunTiming, Tuning};
 
 /// Is the ONNX Runtime backend compiled into this build?
 pub const fn onnx_compiled() -> bool {

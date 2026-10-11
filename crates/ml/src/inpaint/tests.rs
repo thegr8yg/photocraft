@@ -178,3 +178,63 @@ fn resizing_keeps_constants_and_sizes() {
         assert!(r.data.iter().all(|v| (v - 0.4).abs() < 1e-4), "{dw}x{dh}");
     }
 }
+
+/// The row-based resize and dilate must equal the obvious per-sample versions.
+#[test]
+fn fast_resize_and_dilate_match_the_naive_versions() {
+    fn naive_resize(src: &Plane, dw: usize, dh: usize) -> Plane {
+        let wx = axis_weights(src.w, dw);
+        let wy = axis_weights(src.h, dh);
+        let mut mid = Plane::new(dw, src.h, src.c);
+        for y in 0..src.h {
+            for (x, taps) in wx.iter().enumerate() {
+                for ch in 0..src.c {
+                    mid.set(x, y, ch, taps.iter().map(|&(j, w)| src.at(j, y, ch) * w).sum());
+                }
+            }
+        }
+        let mut out = Plane::new(dw, dh, src.c);
+        for (y, taps) in wy.iter().enumerate() {
+            for x in 0..dw {
+                for ch in 0..src.c {
+                    out.set(x, y, ch, taps.iter().map(|&(j, w)| mid.at(x, j, ch) * w).sum());
+                }
+            }
+        }
+        out
+    }
+    fn naive_dilate(mask: &Plane, r: usize) -> Plane {
+        let mut out = Plane::new(mask.w, mask.h, 1);
+        for y in 0..mask.h {
+            for x in 0..mask.w {
+                let mut m = 0.0f32;
+                for yy in y.saturating_sub(r)..=(y + r).min(mask.h - 1) {
+                    for xx in x.saturating_sub(r)..=(x + r).min(mask.w - 1) {
+                        m = m.max(mask.at(xx, yy, 0));
+                    }
+                }
+                out.set(x, y, 0, m);
+            }
+        }
+        out
+    }
+    let mut seed = 12345u32;
+    let mut rnd = move || {
+        seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+        (seed >> 8) as f32 / (1u32 << 24) as f32
+    };
+    for (sw, sh, dw, dh, c) in [(37, 23, 16, 9, 3), (16, 9, 37, 23, 3), (50, 50, 50, 20, 1), (7, 7, 7, 7, 3), (1, 5, 4, 2, 3)] {
+        let mut p = Plane::new(sw, sh, c);
+        p.data.iter_mut().for_each(|v| *v = rnd());
+        let (fast, slow) = (resize(&p, dw, dh), naive_resize(&p, dw, dh));
+        assert_eq!((fast.w, fast.h, fast.c), (slow.w, slow.h, slow.c));
+        assert!(fast.data.iter().zip(&slow.data).all(|(a, b)| (a - b).abs() < 1e-5), "resize {sw}x{sh} -> {dw}x{dh}");
+    }
+    for (w, h, r) in [(20, 13, 3), (5, 5, 16), (1, 9, 2), (9, 1, 1)] {
+        let mut m = Plane::new(w, h, 1);
+        m.data.iter_mut().for_each(|v| *v = if rnd() > 0.9 { 1.0 } else { 0.0 });
+        let want = naive_dilate(&m, r);
+        dilate(&mut m, r);
+        assert_eq!(m.data, want.data, "dilate {w}x{h} r={r}");
+    }
+}

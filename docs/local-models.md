@@ -80,6 +80,26 @@ The first LaMa fill loads the model (seconds); later ones reuse it. The fill is 
 - A model file is hashed in a stream (no 200 MB read into memory), refused above 4 GiB, and only
   the first successful runtime load is remembered, so fixing a wrong path needs no restart.
 
+## Benchmarking and tuning
+
+`crates/ml/examples/lama_bench.rs` times the whole fill (and the bare model call) across ONNX Runtime
+session settings (threads, graph optimisation, spinning, memory pattern), and reports how far each
+setting's output drifts from the reference, so a speed-up that changes the picture is caught:
+
+```sh
+cargo run --release -p photocraft-ml --features onnx --example lama_bench -- \
+    --model lama_fp32.onnx --runtime /path/to/libonnxruntime.so --reps 10 --json out.json
+# your own photos (binary P6 .ppm; holes are generated from a fixed seed):  --images DIR
+# one or more specific settings instead of the sweep:  --config "threads=4,opt=basic,nospin"
+# no model or runtime at all, to check the harness:  --stub
+```
+
+Columns: `e2e` is the whole `inpaint` call, `model` one bare model call, `drift dB` the PSNR of the
+filled pixels against the first (reference) setting (above ~60 dB = lossless), `truth dB` the PSNR
+against the untouched source image (compare *models* with it, on real photos). `photocraft_ml::Tuning`
+carries the same settings in code (`OrtLama::load_tuned`); the app still uses ONNX Runtime's defaults.
+Status: measured so far only with a small stand-in convolution network, not real LaMa weights.
+
 ## For maintainers
 
 - Code: `crates/ml` (L4; the window/scale/composite pipeline, the model contract, the manifest and

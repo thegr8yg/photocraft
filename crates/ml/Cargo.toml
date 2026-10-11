@@ -23,3 +23,7 @@ sha2 = "0.11"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ort = { version = "=2.0.0-rc.13", optional = true, default-features = false, features = ["std", "load-dynamic", "api-17", "cuda", "directml", "coreml"] }
+
+[[example]]
+name = "lama_bench"
+path = "examples/lama_bench.rs"

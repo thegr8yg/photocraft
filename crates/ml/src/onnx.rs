@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
 use ort::ep::{self, ExecutionProvider};
-use ort::session::Session;
+use ort::session::{Session, builder::GraphOptimizationLevel};
 use ort::value::{Shape, Tensor, TensorElementType};
 
 use crate::error::{MlError, Result};
@@ -41,6 +41,81 @@ impl Device {
             _ => None,
         }
     }
+}
+
+/// How much graph rewriting ONNX Runtime does when the model loads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum OptLevel {
+    Off,
+    /// Constant folding and redundant-node removal.
+    Basic,
+    /// Plus node fusions that stay portable across hardware.
+    Extended,
+    /// Plus layout and hardware specific rewrites (ONNX Runtime's own default).
+    #[default]
+    All,
+}
+
+impl OptLevel {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "off" => Some(Self::Off),
+            "basic" => Some(Self::Basic),
+            "extended" => Some(Self::Extended),
+            "all" => Some(Self::All),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Basic => "basic",
+            Self::Extended => "extended",
+            Self::All => "all",
+        }
+    }
+    fn ort(self) -> GraphOptimizationLevel {
+        match self {
+            Self::Off => GraphOptimizationLevel::Disable,
+            Self::Basic => GraphOptimizationLevel::Level1,
+            Self::Extended => GraphOptimizationLevel::Level2,
+            Self::All => GraphOptimizationLevel::All,
+        }
+    }
+}
+
+/// Session knobs that change speed but not what the model computes (up to float rounding).
+/// `Tuning::default()` leaves every choice to ONNX Runtime, i.e. what PhotoCraft did before.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Tuning {
+    /// Threads inside one operator (convolutions, FFTs). 0 = ONNX Runtime's choice (physical cores).
+    pub intra_threads: usize,
+    /// Graph rewriting level at load time.
+    pub opt: OptLevel,
+    /// Let idle worker threads spin briefly instead of sleeping. Lowers latency for back-to-back
+    /// runs, burns CPU between them.
+    pub no_spinning: bool,
+    /// Pre-plan tensor memory from the first run's shapes (CPU only; helps fixed-size models).
+    pub no_memory_pattern: bool,
+}
+
+impl Tuning {
+    /// One-line description, for benchmark tables.
+    pub fn label(&self) -> String {
+        let threads = if self.intra_threads == 0 { "auto".to_string() } else { self.intra_threads.to_string() };
+        format!("threads={threads} opt={} spin={} mempattern={}", self.opt.name(), !self.no_spinning, !self.no_memory_pattern)
+    }
+}
+
+/// Seconds-scale timings of the last run, for benchmarks and the status line.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RunTiming {
+    /// Layout conversion into the model's tensors.
+    pub prepare: std::time::Duration,
+    /// `Session::run`.
+    pub session: std::time::Duration,
+    /// Output extraction and layout conversion.
+    pub finish: std::time::Duration,
 }
 
 /// The library the process loaded (ONNX Runtime can be loaded once per process). Only a success
@@ -114,6 +189,8 @@ pub struct OrtLama {
     label: String,
     /// What the model runs on, for the status line.
     pub device: String,
+    tuning: Tuning,
+    last: Mutex<RunTiming>,
 }
 
 impl std::fmt::Debug for OrtLama {
@@ -154,20 +231,47 @@ fn square_side(shape: &Shape) -> Result<usize> {
 impl OrtLama {
     /// Load `model` (an ONNX file) with the runtime library at `runtime` (or the default search).
     pub fn load(runtime: Option<&Path>, model: &Path, device: Device) -> Result<Self> {
+        Self::load_tuned(runtime, model, device, Tuning::default())
+    }
+
+    /// [`load`](Self::load) with explicit session settings (see [`Tuning`]).
+    pub fn load_tuned(runtime: Option<&Path>, model: &Path, device: Device, tuning: Tuning) -> Result<Self> {
         load_runtime(runtime)?;
         let info = manifest::hash_file(model)?;
         let _ = info;
-        let inner = catch_unwind(AssertUnwindSafe(|| Self::build(model, device)));
+        let inner = catch_unwind(AssertUnwindSafe(|| Self::build(model, device, tuning)));
         match inner {
             Ok(r) => r,
             Err(_) => Err(MlError::Runtime("ONNX Runtime failed while loading the model (it is probably too old for this model; try a newer runtime)".into())),
         }
     }
 
-    fn build(model: &Path, device: Device) -> Result<Self> {
+    /// The settings this session was created with.
+    pub fn tuning(&self) -> Tuning {
+        self.tuning
+    }
+
+    /// Where the last `run` spent its time.
+    pub fn last_timing(&self) -> RunTiming {
+        *self.last.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn build(model: &Path, device: Device, tuning: Tuning) -> Result<Self> {
         let gpus = if device == Device::Auto { gpu_providers() } else { Vec::new() };
         let names: Vec<&str> = gpus.iter().map(|(n, _)| *n).collect();
-        let mut builder = Session::builder().map_err(|e| MlError::Runtime(e.to_string()))?;
+        fn rt<E: std::fmt::Display>(e: E) -> MlError {
+            MlError::Runtime(e.to_string())
+        }
+        let mut builder = Session::builder().map_err(rt)?.with_optimization_level(tuning.opt.ort()).map_err(rt)?;
+        if tuning.intra_threads > 0 {
+            builder = builder.with_intra_threads(tuning.intra_threads).map_err(rt)?;
+        }
+        if tuning.no_spinning {
+            builder = builder.with_intra_op_spinning(false).map_err(rt)?;
+        }
+        if tuning.no_memory_pattern {
+            builder = builder.with_memory_pattern(false).map_err(rt)?;
+        }
         if !gpus.is_empty() {
             let eps: Vec<_> = gpus.iter().map(|(_, e)| e.clone()).collect();
             builder = builder.with_execution_providers(eps).map_err(|e| MlError::Runtime(e.to_string()))?;
@@ -195,28 +299,35 @@ impl OrtLama {
         let size = square_side(shape)?;
         let label = model.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "model".into());
         let device = if names.is_empty() { "CPU".to_string() } else { format!("{} (falls back to CPU)", names.join(" / ")) };
-        Ok(Self { size, image_input: image.name().to_string(), mask_input: mask.name().to_string(), label, device, session: Mutex::new(session) })
+        Ok(Self { size, image_input: image.name().to_string(), mask_input: mask.name().to_string(), label, device, tuning, last: Mutex::new(RunTiming::default()), session: Mutex::new(session) })
     }
 
     fn infer(&self, rgb: &[f32], mask: &[f32]) -> Result<Vec<f32>> {
         let n = self.size;
         let plane = n * n;
-        // Interleaved HWC -> planar CHW.
+        let t0 = std::time::Instant::now();
+        // Interleaved HWC -> planar CHW, one pass per channel plane (no per-element bounds checks).
         let mut chw = vec![0.0f32; plane * 3];
-        for (i, px) in rgb.chunks_exact(3).enumerate() {
-            for (c, v) in px.iter().enumerate() {
-                if let Some(d) = chw.get_mut(c * plane + i) {
-                    *d = *v;
-                }
+        let (r, rest) = chw.split_at_mut(plane);
+        let (g, b) = rest.split_at_mut(plane);
+        for (((px, r), g), b) in rgb.chunks_exact(3).zip(r.iter_mut()).zip(g.iter_mut()).zip(b.iter_mut()) {
+            if let [pr, pg, pb] = px {
+                *r = *pr;
+                *g = *pg;
+                *b = *pb;
             }
         }
         let dim = n as i64;
         let image = Tensor::from_array((Shape::new([1, 3, dim, dim]), chw)).map_err(|e| MlError::Runtime(e.to_string()))?;
         let mask_t = Tensor::from_array((Shape::new([1, 1, dim, dim]), mask.to_vec())).map_err(|e| MlError::Runtime(e.to_string()))?;
+        let prepare = t0.elapsed();
         let mut session = self.session.lock().unwrap_or_else(PoisonError::into_inner);
+        let t1 = std::time::Instant::now();
         let outputs = session
             .run(ort::inputs![self.image_input.as_str() => image, self.mask_input.as_str() => mask_t])
             .map_err(|e| MlError::Model(format!("the model failed: {e}")))?;
+        let ran = t1.elapsed();
+        let t2 = std::time::Instant::now();
         let first = outputs.iter().next().ok_or_else(|| MlError::Model("the model returned nothing".into()))?.1;
         let (shape, data) = first.try_extract_tensor::<f32>().map_err(|e| MlError::Model(format!("unexpected model output: {e}")))?;
         if data.len() != plane * 3 {
@@ -225,16 +336,24 @@ impl OrtLama {
         // Exports differ: planar (1,3,H,W) or interleaved (1,H,W,3); 0..1 or 0..255.
         let planar = shape.last().copied() != Some(3);
         let peak = data.iter().copied().fold(0.0f32, |m, v| if v.is_finite() { m.max(v) } else { m });
-        let unit = if peak > 1.5 { 255.0 } else { 1.0 };
+        let inv = if peak > 1.5 { 1.0 / 255.0 } else { 1.0 };
         let mut out = vec![0.0f32; plane * 3];
-        for i in 0..plane {
-            for c in 0..3 {
-                let src = if planar { c * plane + i } else { i * 3 + c };
-                if let (Some(d), Some(s)) = (out.get_mut(i * 3 + c), data.get(src)) {
-                    *d = *s / unit;
+        if planar {
+            let (r, rest) = data.split_at(plane);
+            let (g, b) = rest.split_at(plane);
+            for (((o, r), g), b) in out.chunks_exact_mut(3).zip(r).zip(g).zip(b) {
+                if let [or, og, ob] = o {
+                    *or = *r * inv;
+                    *og = *g * inv;
+                    *ob = *b * inv;
                 }
             }
+        } else {
+            for (o, s) in out.iter_mut().zip(data) {
+                *o = *s * inv;
+            }
         }
+        *self.last.lock().unwrap_or_else(PoisonError::into_inner) = RunTiming { prepare, session: ran, finish: t2.elapsed() };
         Ok(out)
     }
 }
@@ -245,6 +364,10 @@ impl InpaintModel for OrtLama {
     }
     fn size(&self) -> usize {
         self.size
+    }
+    fn timing_split_ms(&self) -> Option<(f64, f64, f64)> {
+        let t = self.last_timing();
+        Some((t.prepare.as_secs_f64() * 1e3, t.session.as_secs_f64() * 1e3, t.finish.as_secs_f64() * 1e3))
     }
     fn run(&self, rgb: &[f32], mask: &[f32]) -> Result<Vec<f32>> {
         let plane = self.size * self.size;

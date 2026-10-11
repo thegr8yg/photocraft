@@ -31,6 +31,11 @@ pub trait InpaintModel: Send + Sync {
     fn size(&self) -> usize;
     /// Fill: see the module docs for the buffer layout.
     fn run(&self, rgb: &[f32], mask: &[f32]) -> Result<Vec<f32>>;
+    /// Where the last `run` spent its time as (prepare, model, finish) in milliseconds, if the
+    /// backend measures it. Used by benchmarks.
+    fn timing_split_ms(&self) -> Option<(f64, f64, f64)> {
+        None
+    }
 }
 
 /// The pixels to fill: interleaved RGB (0..1) and a hole flag per pixel.
@@ -141,27 +146,37 @@ fn axis_weights(src: usize, dst: usize) -> Vec<Vec<(usize, f32)>> {
 }
 
 /// Resize to `dw × dh` (separable; each axis shrinks by area or grows linearly).
+///
+/// Works on whole rows (slices, no per-sample bounds checks) so the compiler can vectorise: the
+/// horizontal pass gathers each output pixel from its taps, the vertical pass accumulates scaled
+/// source rows into the output row.
 fn resize(src: &Plane, dw: usize, dh: usize) -> Plane {
     if src.w == dw && src.h == dh {
         return src.clone();
     }
+    let c = src.c;
     let wx = axis_weights(src.w, dw);
     let wy = axis_weights(src.h, dh);
-    let mut mid = Plane::new(dw, src.h, src.c);
-    for y in 0..src.h {
-        for (x, taps) in wx.iter().enumerate() {
-            for ch in 0..src.c {
-                let v: f32 = taps.iter().map(|&(j, w)| src.at(j, y, ch) * w).sum();
-                mid.set(x, y, ch, v);
+    let mut mid = Plane::new(dw, src.h, c);
+    let (src_row, mid_row) = (src.w * c, dw * c);
+    if src_row > 0 && mid_row > 0 {
+        for (srow, mrow) in src.data.chunks_exact(src_row).zip(mid.data.chunks_exact_mut(mid_row)) {
+            for (taps, dst) in wx.iter().zip(mrow.chunks_exact_mut(c)) {
+                for (ch, d) in dst.iter_mut().enumerate() {
+                    *d = taps.iter().map(|&(j, w)| srow.get(j * c + ch).copied().unwrap_or(0.0) * w).sum();
+                }
             }
         }
     }
-    let mut out = Plane::new(dw, dh, src.c);
-    for (y, taps) in wy.iter().enumerate() {
-        for x in 0..dw {
-            for ch in 0..src.c {
-                let v: f32 = taps.iter().map(|&(j, w)| mid.at(x, j, ch) * w).sum();
-                out.set(x, y, ch, v);
+    let mut out = Plane::new(dw, dh, c);
+    if mid_row > 0 {
+        for (taps, orow) in wy.iter().zip(out.data.chunks_exact_mut(mid_row)) {
+            for &(j, w) in taps {
+                if let Some(mrow) = mid.data.get(j * mid_row..(j + 1) * mid_row) {
+                    for (o, m) in orow.iter_mut().zip(mrow) {
+                        *o += m * w;
+                    }
+                }
             }
         }
     }
@@ -170,27 +185,26 @@ fn resize(src: &Plane, dw: usize, dh: usize) -> Plane {
 
 /// Grow the 1-channel mask by `r` pixels (square structuring element, two passes).
 fn dilate(mask: &mut Plane, r: usize) {
-    if r == 0 {
+    if r == 0 || mask.w == 0 || mask.h == 0 {
         return;
     }
     let (w, h) = (mask.w, mask.h);
-    let mut tmp = Plane::new(w, h, 1);
-    for y in 0..h {
-        for x in 0..w {
-            let mut m = 0.0f32;
-            for xx in x.saturating_sub(r)..=(x + r).min(w.saturating_sub(1)) {
-                m = m.max(mask.at(xx, y, 0));
-            }
-            tmp.set(x, y, 0, m);
+    let mut tmp = vec![0.0f32; w * h];
+    for (src, dst) in mask.data.chunks_exact(w).zip(tmp.chunks_exact_mut(w)) {
+        for (x, d) in dst.iter_mut().enumerate() {
+            let lo = x.saturating_sub(r);
+            let hi = (x + r).min(w - 1);
+            *d = src.get(lo..=hi).map_or(0.0, |s| s.iter().copied().fold(0.0f32, f32::max));
         }
     }
-    for y in 0..h {
-        for x in 0..w {
-            let mut m = 0.0f32;
-            for yy in y.saturating_sub(r)..=(y + r).min(h.saturating_sub(1)) {
-                m = m.max(tmp.at(x, yy, 0));
+    for (y, dst) in mask.data.chunks_exact_mut(w).enumerate() {
+        dst.fill(0.0);
+        for yy in y.saturating_sub(r)..=(y + r).min(h - 1) {
+            if let Some(row) = tmp.get(yy * w..(yy + 1) * w) {
+                for (d, v) in dst.iter_mut().zip(row) {
+                    *d = d.max(*v);
+                }
             }
-            mask.set(x, y, 0, m);
         }
     }
 }
