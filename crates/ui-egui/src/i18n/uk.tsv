@@ -3558,3 +3558,17 @@ cameraRaw	Masking	Маскування
 	Search settings…	Пошук налаштувань…
 	No matching settings	Немає відповідних налаштувань
 	PhotoCraft — Screen Color Picker	PhotoCraft — Піпетка кольору екрана
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Локальні моделі…
+	Local Models	Локальні моделі
+	Check setup	Перевірити налаштування
+	Status	Стан
+	Press Check setup to test these settings.	Натисніть «Перевірити налаштування», щоб перевірити ці параметри.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa працює на цьому комп’ютері через ONNX Runtime. Див. docs/local-models.md.
+	Classical (patch completion)	Класичний (заповнення за фрагментами)
+	LaMa (neural model, runs locally)	LaMa (нейромережева модель, працює локально)
+	Device	Пристрій
+	LaMa Model	Модель LaMa
+	LaMa SHA-256	SHA-256 для LaMa
+	ONNX Runtime Library	Бібліотека ONNX Runtime

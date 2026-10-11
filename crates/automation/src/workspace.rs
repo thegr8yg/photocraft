@@ -296,7 +296,7 @@ fn preference_uses_ambient_filesystem(path: &str) -> bool {
     // The engine skips empty segments (`.scriptEvents.enabled` sets `scriptEvents.enabled`), so
     // judge the first non-empty one; no segment at all is the whole-preferences update.
     let Some(section) = path.split('.').find(|segment| !segment.is_empty()) else { return true };
-    matches!(section, "colorSettings" | "scriptEvents" | "historyLog" | "plugIns" | "scratchDisks")
+    matches!(section, "colorSettings" | "scriptEvents" | "historyLog" | "plugIns" | "scratchDisks" | "localModels")
 }
 
 fn command_uses_ambient_path(id: &str, params: &Value) -> bool {
@@ -308,6 +308,8 @@ fn command_uses_ambient_path(id: &str, params: &Value) -> bool {
         // With a `path` the file is written there; without one the bytes come back as `data`.
         "swatches.export" => params.get("path").is_some(),
         "plugin.reload" => true,
+        // Trying a runtime library or model file by path loads native code / reads that file.
+        "ml.status" => ["onnxRuntimeLibrary", "lamaModel"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())),
         _ => false,
     }
 }
@@ -645,6 +647,8 @@ mod tests {
             ("plugin.install", serde_json::json!({"path": " "})),
             ("swatches.import", serde_json::json!({"path": "/outside/set.aco"})),
             ("swatches.export", serde_json::json!({"path": "/outside/set.ase"})),
+            ("ml.status", serde_json::json!({"onnxRuntimeLibrary": "/outside/libevil.so", "load": true})),
+            ("ml.status", serde_json::json!({"lamaModel": "/outside/lama.onnx", "verify": true})),
         ] {
             assert!(authorize_engine_command(id, &params).is_err(), "{id}: {params}");
         }
@@ -654,6 +658,8 @@ mod tests {
             ("plugin.install", serde_json::json!({"data": "QUJD"})),
             ("swatches.import", serde_json::json!({"data": "QUJD"})),
             ("swatches.export", serde_json::json!({"format": "ase"})),
+            ("ml.status", serde_json::json!({"verify": true, "load": true})),
+            ("ml.status", serde_json::json!({"device": "cpu", "lamaModel": null})),
         ] {
             assert!(authorize_engine_command(id, &params).is_ok(), "{id}: {params}");
         }
@@ -669,6 +675,9 @@ mod tests {
             ".historyLog.filePath",
             "plugIns.additionalPluginsFolder",
             "scratchDisks.disks",
+            "localModels.onnxRuntimeLibrary",
+            "localModels.lamaModel",
+            ".localModels.lamaModel",
             ".",
             "..historyLog.filePath",
         ] {
@@ -693,6 +702,8 @@ mod tests {
             "input": "/outside/photocraft-input",
             "output": "/outside/photocraft-output",
             "paths": ["/outside/photocraft-probe.psd"],
+            "lamaModel": "/outside/photocraft-probe.onnx",
+            "onnxRuntimeLibrary": "/outside/photocraft-probe.so",
         });
         let preference_probe = serde_json::json!({"path": ".scriptEvents", "value": {}});
         let unclassified: Vec<_> = photocraft_engine::command_specs()

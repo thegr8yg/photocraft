@@ -65,6 +65,7 @@ pub mod lens_cmds;
 pub mod magnetic_cmds;
 pub mod mask_view_cmds;
 mod migrate_cmds;
+pub mod ml_cmds;
 pub mod mode_cmds;
 pub mod multichannel_cmds;
 pub mod notes_cmds;
@@ -351,6 +352,8 @@ pub struct Session {
     pub prefs: prefs::PrefsStore,
     /// Edit menu state: Fade source, custom shape library (see `edit_menu_cmds`).
     pub edit_state: edit_menu_cmds::EditState,
+    /// Local models (LaMa): the loaded model and the test stand-in (see `ml_cmds`).
+    pub ml: ml_cmds::MlState,
     /// The pattern library (Window › Patterns; see `pattern.*`).
     pub patterns: pattern_cmds::PatternLibrary,
     /// Image › Analysis: Measurement Log and Select Data Points (see `analysis_cmds`).

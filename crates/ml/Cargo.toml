@@ -1,0 +1,25 @@
+[package]
+name = "photocraft-ml"
+description = "Local machine-learning models for PhotoCraft: LaMa inpainting for Content-Aware Fill, behind a model-agnostic seam (ONNX Runtime loaded at run time)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The ONNX Runtime backend (native only). The runtime library itself is not linked or downloaded
+# at build time: `ort` loads `libonnxruntime` / `onnxruntime.dll` from a path at run time, so a
+# build without the library still works and reports "runtime not found". Wasm builds ignore it.
+onnx = ["dep:ort"]
+
+[dependencies]
+thiserror = { workspace = true }
+# SHA-256 of a model file, checked against the pin the user records (MIT OR Apache-2.0).
+sha2 = "0.11"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ort = { version = "=2.0.0-rc.13", optional = true, default-features = false, features = ["std", "load-dynamic", "api-17", "cuda", "directml", "coreml"] }

@@ -2522,3 +2522,18 @@ fontWeight	Italic	Corsivo
 	Front Image	Immagine in primo piano
 	Search settings…	Cerca impostazioni…
 	No matching settings	Nessuna impostazione corrispondente
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Modelli locali…
+	Local Models	Modelli locali
+	Check setup	Verifica configurazione
+	Status	Stato
+	Press Check setup to test these settings.	Premi «Verifica configurazione» per provare queste impostazioni.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa viene eseguito su questo computer con ONNX Runtime. Vedi docs/local-models.md.
+	Classical (patch completion)	Classico (completamento a patch)
+	LaMa (neural model, runs locally)	LaMa (modello neurale, eseguito in locale)
+	Device	Dispositivo
+	LaMa Model	Modello LaMa
+	LaMa SHA-256	SHA-256 di LaMa
+	ONNX Runtime Library	Libreria ONNX Runtime
+	Content-Aware Fill	Riempimento in base al contenuto

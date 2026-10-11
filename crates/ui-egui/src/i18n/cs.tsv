@@ -2453,3 +2453,18 @@ fontWeight	Italic	Kurzíva
 	Front Image	Přední obraz
 	Search settings…	Hledat nastavení…
 	No matching settings	Žádná odpovídající nastavení
+
+# Local models (LaMa Content-Aware Fill)
+	Local Models…	Místní modely…
+	Local Models	Místní modely
+	Check setup	Zkontrolovat nastavení
+	Status	Stav
+	Press Check setup to test these settings.	Kliknutím na „Zkontrolovat nastavení“ tato nastavení otestujete.
+	LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.	LaMa běží na tomto počítači pomocí ONNX Runtime. Viz docs/local-models.md.
+	Classical (patch completion)	Klasická (doplnění záplatami)
+	LaMa (neural model, runs locally)	LaMa (neuronový model, běží lokálně)
+	Device	Zařízení
+	LaMa Model	Model LaMa
+	LaMa SHA-256	SHA-256 modelu LaMa
+	ONNX Runtime Library	Knihovna ONNX Runtime
+	Content-Aware Fill	Výplň s ohledem na obsah
