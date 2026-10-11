@@ -137,7 +137,8 @@ pub fn lama_fill(model: &dyn InpaintModel, w: usize, h: usize, img: &[f32], hole
         rgb.extend(c.iter().take(3).map(|v| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 }));
     }
     ctx.check()?;
-    let out = photocraft_ml::inpaint(model, Region { width: w, height: h, rgb: &rgb, hole }, &Options::default(), &|| ctx.check().is_err()).map_err(ml_error)?;
+    let out =
+        photocraft_ml::inpaint(model, Region { width: w, height: h, rgb: &rgb, hole }, &Options::default(), &|| ctx.check().is_err()).map_err(ml_error)?;
     let mut filled = img.to_vec();
     let mut enc = [0.0f32; 8];
     for (i, (&is_hole, px)) in hole.iter().zip(out.rgb.chunks_exact(3)).enumerate() {
@@ -184,7 +185,10 @@ fn status(s: &mut Session, p: &Value) -> Result<Value> {
         }
     }
     if let Some(d) = p.get("device") {
-        cfg.device = d.as_str().and_then(crate::prefs::LocalDevice::parse).ok_or_else(|| EngineError::BadParams { cmd: "ml.status".into(), msg: "`device` must be auto|cpu".into() })?;
+        cfg.device = d
+            .as_str()
+            .and_then(crate::prefs::LocalDevice::parse)
+            .ok_or_else(|| EngineError::BadParams { cmd: "ml.status".into(), msg: "`device` must be auto|cpu".into() })?;
     }
     let verify = p.get("verify").and_then(Value::as_bool).unwrap_or(false);
     let load = p.get("load").and_then(Value::as_bool).unwrap_or(false);

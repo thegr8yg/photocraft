@@ -76,6 +76,7 @@ The first LaMa fill loads the model (seconds); later ones reuse it. The fill is 
   mismatching model file, and a model that returns nonsense are all **errors with a message**, and
   the document is left alone. Calls into `ort` run under a panic guard because `ort` itself panics
   on some bad environments.
+- Over automation (MCP, the control channel) the `localModels` preferences and `ml.status`'s `lamaModel` / `onnxRuntimeLibrary` params are refused: choosing which native library the app loads, or which file it reads, is the person's decision at the keyboard, not an agent's. An agent can still run `edit.contentAwareFill` with `method: lama` and `ml.status` against what the person configured.
 - A model file is hashed in a stream (no 200 MB read into memory), refused above 4 GiB, and only
   the first successful runtime load is remembered, so fixing a wrong path needs no restart.
 

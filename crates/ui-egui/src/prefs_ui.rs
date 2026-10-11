@@ -731,7 +731,7 @@ pub fn invoke(app: &mut PhotocraftApp, _ctx: &egui::Context, id: &str, params: &
                 }
                 dm.fields.insert("method".into(), json!(method));
                 if !configured {
-                    dm.fields.insert("__note".into(), json!("LaMa needs a model: set it up in Edit › Preferences › Local Models."));
+                    dm.fields.insert("__note".into(), json!("Method LaMa needs a model: set it up in Edit › Preferences › Local Models."));
                 }
             }
             dialog(d)

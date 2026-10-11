@@ -122,11 +122,7 @@ fn hostile_options_are_clamped() {
     let m = SolidFill { size: 32, color: RED };
     let rgb = gradient(80, 80);
     let hole = rect_hole(80, 80, 30, 30, 50, 50);
-    for o in [
-        Options { context: f32::NAN, dilate: usize::MAX },
-        Options { context: f32::INFINITY, dilate: 0 },
-        Options { context: -5.0, dilate: 1000 },
-    ] {
+    for o in [Options { context: f32::NAN, dilate: usize::MAX }, Options { context: f32::INFINITY, dilate: 0 }, Options { context: -5.0, dilate: 1000 }] {
         assert!(inpaint(&m, Region { width: 80, height: 80, rgb: &rgb, hole: &hole }, &o, &never).is_ok());
     }
 }

@@ -185,7 +185,10 @@ impl OrtLama {
         let mask = inputs.get(mask_idx).ok_or_else(|| MlError::Model("the model has no mask input".into()))?;
         for i in [image, mask] {
             if i.dtype().tensor_type() != Some(TensorElementType::Float32) {
-                return Err(MlError::Model(format!("input `{}` is not 32-bit float (half-precision models are not supported yet; use the fp32 export)", i.name())));
+                return Err(MlError::Model(format!(
+                    "input `{}` is not 32-bit float (half-precision models are not supported yet; use the fp32 export)",
+                    i.name()
+                )));
             }
         }
         let shape = image.dtype().tensor_shape().ok_or_else(|| MlError::Model("the image input is not a tensor".into()))?;

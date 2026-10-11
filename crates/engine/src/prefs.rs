@@ -821,7 +821,13 @@ pub struct LocalModels {
 
 impl Default for LocalModels {
     fn default() -> Self {
-        Self { onnx_runtime_library: String::new(), lama_model: String::new(), lama_sha256: String::new(), device: LocalDevice::Auto, content_aware_fill: FillMethod::Classical }
+        Self {
+            onnx_runtime_library: String::new(),
+            lama_model: String::new(),
+            lama_sha256: String::new(),
+            device: LocalDevice::Auto,
+            content_aware_fill: FillMethod::Classical,
+        }
     }
 }
 
