@@ -389,6 +389,22 @@ fn content_aware_fill_as(s: &mut Session, p: &Value, cmd: &'static str, label: &
     if !matches!(output.as_str(), "current" | "new" | "duplicate") {
         return Err(bad(cmd, "`output` must be current|new|duplicate"));
     }
+    // `lama` fills with the neural model: it sees the pixels around the selection (a window as
+    // wide as the selection or 512 px, whichever is larger, on each side), whatever the sampling.
+    let method = match p.get("method") {
+        None | Some(Value::Null) => s.prefs.get().local_models.content_aware_fill.name(),
+        Some(Value::String(m)) if m == "classical" => "classical",
+        Some(Value::String(m)) if m == "lama" => "lama",
+        Some(_) => return Err(bad(cmd, "`method` must be classical|lama")),
+    };
+    let lama = method == "lama";
+    let (local_cfg, ml) = (s.prefs.get().local_models.clone(), s.ml.handle());
+    let window = if lama {
+        crate::ml_cmds::precheck(&local_cfg, &ml)?;
+        hb.inflate(hb.width().max(hb.height()).clamp(512, 100_000) as i32).intersect(&doc.bounds())
+    } else {
+        window
+    };
     let surf = doc.layer(id).and_then(|l| l.surface()).ok_or(EngineError::NoLayer(id))?;
     let fmt = surf.format();
     let n = fmt.channels();
@@ -426,6 +442,14 @@ fn content_aware_fill_as(s: &mut Session, p: &Value, cmd: &'static str, label: &
                 }
             }
             ctx.check()?;
+            if lama {
+                ctx.progress(0.05, "Loading the model");
+                let model = ml.lama(&local_cfg)?;
+                ctx.check()?;
+                ctx.progress(0.2, label);
+                let filled = crate::ml_cmds::lama_fill(&*model, w, h, &img, &hole, &fmt, ctx)?;
+                return Ok((img, cover, hole, filled));
+            }
             // Auto: only what looks like the selection's surroundings.
             if sampling == "auto" {
                 source = auto_sampling(w, h, n, &img, &hole);
@@ -434,7 +458,11 @@ fn content_aware_fill_as(s: &mut Session, p: &Value, cmd: &'static str, label: &
             let filled = ctx.stage(0.05, 1.0, label, |ctl| fill_with(w, h, n, &img, &hole, &source, &opts, ctl)).map_err(|_| EngineError::Cancelled)?;
             Ok((img, cover, hole, filled))
         },
-        move |s, (img, cover, hole, filled)| apply_content_aware_fill(s, label, id, &output, fmt, window, &img, &cover, &hole, &filled),
+        move |s, (img, cover, hole, filled)| {
+            let mut r = apply_content_aware_fill(s, label, id, &output, fmt, window, &img, &cover, &hole, &filled)?;
+            r["method"] = json!(if lama { "lama" } else { "classical" });
+            Ok(r)
+        },
     )
 }
 
@@ -996,7 +1024,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Content-Aware Fill…",
             ["Edit"],
             None,
-            r##"{"sampling":"auto|rectangular|custom","margin":px?,"area":[x,y,w,h]?,"channel":index|name?,"colorAdaptation":"default|none|high|veryHigh","rotationAdaptation":"none|low|medium|high|full","scale":bool=false,"mirror":bool=false,"output":"current|new|duplicate","seed":u64=1}"##,
+            r##"{"sampling":"auto|rectangular|custom","margin":px?,"area":[x,y,w,h]?,"channel":index|name?,"colorAdaptation":"default|none|high|veryHigh","rotationAdaptation":"none|low|medium|high|full","scale":bool=false,"mirror":bool=false,"output":"current|new|duplicate","method":"classical|lama","seed":u64=1} (method defaults to Preferences › Local Models; lama is the LaMa neural model, needs Local Models set up, fills from the pixels around the selection and ignores sampling and adaptation options)"##,
             can_caf,
             content_aware_fill
         ),

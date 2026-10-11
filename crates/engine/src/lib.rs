@@ -33,6 +33,7 @@ pub mod distort_cmds;
 pub mod document_preset_cmds;
 pub mod edit_cmds;
 pub mod edit_menu_cmds;
+pub mod ml_cmds;
 pub mod eraser_cmds;
 pub mod exr_cmds;
 pub mod extra_cmds;
@@ -351,6 +352,8 @@ pub struct Session {
     pub prefs: prefs::PrefsStore,
     /// Edit menu state: Fade source, custom shape library (see `edit_menu_cmds`).
     pub edit_state: edit_menu_cmds::EditState,
+    /// Local models (LaMa): the loaded model and the test stand-in (see `ml_cmds`).
+    pub ml: ml_cmds::MlState,
     /// The pattern library (Window › Patterns; see `pattern.*`).
     pub patterns: pattern_cmds::PatternLibrary,
     /// Image › Analysis: Measurement Log and Select Data Points (see `analysis_cmds`).

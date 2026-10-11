@@ -722,10 +722,16 @@ pub fn invoke(app: &mut PhotocraftApp, _ctx: &egui::Context, id: &str, params: &
                 return Some(Err("Content-Aware Fill needs a selection on a pixel layer".into()));
             }
             let d = crate::filter_dialog::open(app, id);
+            let method = app.session.prefs().local_models.content_aware_fill.name();
+            let configured = app.run("ml.status", json!({})).ok().and_then(|r| r["configured"].as_bool()).unwrap_or(false);
             if let Some(dm) = d.and_then(|d| app.ui.dialog_mut(d)) {
                 dm.fields.insert("__preview".into(), json!(true));
                 for k in ["margin", "seed", "channel"] {
                     dm.fields.remove(k);
+                }
+                dm.fields.insert("method".into(), json!(method));
+                if !configured {
+                    dm.fields.insert("__note".into(), json!("LaMa needs a model: set it up in Edit › Preferences › Local Models."));
                 }
             }
             dialog(d)
@@ -887,6 +893,13 @@ pub fn body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
             f.insert("__gpuInfo".into(), json!(app.perf.gpu_info.lines()));
             let system = system_theme(app, ui.ctx());
             prefs_body(ui, f, system);
+            if let Some(path) = ui.ctx().data_mut(|d| d.remove_temp::<String>(egui::Id::new(BROWSE_ID))) {
+                browse_model_path(app, &path);
+            }
+            if ui.ctx().data_mut(|d| d.remove_temp::<bool>(egui::Id::new(CHECK_ID))).unwrap_or(false) {
+                let lines = check_local_models(app, f.get("values").unwrap_or(&Value::Null));
+                f.insert("__mlStatus".into(), json!(lines));
+            }
         }
         "shortcuts" => shortcuts_body(app, ui, f),
         "presets" => presets_body(app, ui, f),
@@ -901,6 +914,10 @@ fn humanize(key: &str) -> String {
         "appearanceMode" => return "Appearance Mode".into(),
         "darkTheme" => return "Dark Theme".into(),
         "lightTheme" => return "Light Theme".into(),
+        "onnxRuntimeLibrary" => return "ONNX Runtime Library".into(),
+        "lamaModel" => return "LaMa Model".into(),
+        "lamaSha256" => return "LaMa SHA-256".into(),
+        "contentAwareFill" => return "Content-Aware Fill".into(),
         _ => {}
     }
     // These controls appear only for WebP, so reuse the existing translated labels.
@@ -945,6 +962,8 @@ fn choice_label(v: &str) -> String {
         "metal" => "Metal".into(),
         "gl" => "OpenGL".into(),
         "cpu" => "CPU (no GPU acceleration)".into(),
+        "classical" => "Classical (patch completion)".into(),
+        "lama" => "LaMa (neural model, runs locally)".into(),
         v => humanize(v),
     }
 }
@@ -1074,6 +1093,9 @@ fn prefs_body(ui: &mut egui::Ui, f: &mut Map<String, Value>, system: Option<egui
                     }
                     if section == "performance" {
                         gpu_status_rows(ui, f.get("__gpuInfo"), obj);
+                    }
+                    if section == "localModels" {
+                        local_models_rows(ui, f.get("__mlStatus"));
                     }
                     ui.add_space(8.0);
                 }
@@ -1296,6 +1318,99 @@ fn ctx_take_pick(ui: &egui::Ui) -> Option<(String, String)> {
     ui.ctx().data_mut(|d| d.remove_temp::<(String, String)>(egui::Id::new(PICK_ID)))
 }
 
+const BROWSE_ID: &str = "prefs-browse-model";
+const CHECK_ID: &str = "prefs-check-models";
+
+/// The two Local Models fields that hold a file path (they get a Browse button).
+fn is_model_path(path: &str) -> bool {
+    matches!(path, "localModels.lamaModel" | "localModels.onnxRuntimeLibrary")
+}
+
+/// Preferences › Local Models: what Check setup found, and the button.
+fn local_models_rows(ui: &mut egui::Ui, status: Option<&Value>) {
+    let t = Tokens::get(ui.ctx());
+    ui.add_space(10.0);
+    ui.label(RichText::new(tl!("Status")).font(crate::theme::semibold(12.5)).color(t.text));
+    let lines: Vec<&str> = status.and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+    if lines.is_empty() {
+        ui.label(RichText::new(tl!("Press Check setup to test these settings.")).color(t.text_faint));
+    }
+    for line in lines {
+        ui.label(RichText::new(line).color(t.text_dim));
+    }
+    ui.add_space(4.0);
+    if crate::widgets::secondary_button(ui, tl!("Check setup"), 110.0).clicked() {
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(CHECK_ID), true));
+    }
+    ui.add_space(4.0);
+    ui.label(RichText::new(tl!("LaMa runs on this computer with ONNX Runtime. See docs/local-models.md.")).color(t.text_faint));
+}
+
+/// Test the Local Models settings as typed (not yet saved) and describe the result, one line each.
+fn check_local_models(app: &mut PhotocraftApp, values: &Value) -> Vec<String> {
+    let draft = values.get("localModels").cloned().unwrap_or(Value::Null);
+    let pick = |k: &str| draft.get(k).cloned().unwrap_or(Value::Null);
+    let params = json!({
+        "verify": true, "load": true,
+        "onnxRuntimeLibrary": pick("onnxRuntimeLibrary"), "lamaModel": pick("lamaModel"), "lamaSha256": pick("lamaSha256"), "device": pick("device"),
+    });
+    let r = match app.run("ml.status", params) {
+        Ok(r) => r,
+        Err(e) => return vec![e],
+    };
+    let mut lines = Vec::new();
+    if r["compiled"] != json!(true) {
+        lines.push("This build has no local-model support (build with --features local-ml).".to_string());
+    }
+    let lama = &r["lama"];
+    lines.push(match (lama["set"].as_bool(), lama["found"].as_bool()) {
+        (Some(true), Some(true)) => {
+            let mb = lama["bytes"].as_u64().unwrap_or(0) as f64 / 1e6;
+            let hash = lama["sha256"].as_str().map(|h| format!(", SHA-256 {}…", h.get(..12).unwrap_or(h))).unwrap_or_default();
+            format!("LaMa model: found ({mb:.0} MB{hash})")
+        }
+        (Some(true), _) => format!("LaMa model: {}", lama["error"].as_str().unwrap_or("not found")),
+        _ => "LaMa model: not set".to_string(),
+    });
+    if let Some(e) = lama["error"].as_str().filter(|_| lama["found"] == json!(true)) {
+        lines.push(e.to_string());
+    }
+    match (r["loaded"]["name"].as_str(), r["loadError"].as_str()) {
+        (Some(name), _) => lines.push(format!("Ready: {name}")),
+        (_, Some(e)) => lines.push(format!("Not ready: {e}")),
+        _ => {}
+    }
+    lines
+}
+
+/// Choose the file for a Local Models path field; the answer lands in the open Preferences draft.
+fn browse_model_path(app: &mut PhotocraftApp, path: &str) {
+    let (key, extensions) = match path {
+        "localModels.lamaModel" => ("lamaModel", Some(vec!["onnx".to_string()])),
+        "localModels.onnxRuntimeLibrary" => ("onnxRuntimeLibrary", None),
+        _ => return,
+    };
+    let request = crate::file_dialog::FileDialogRequest::Open { multiple: false, initial_dir: None, extensions };
+    let asked = app.ask_file(request, move |app, answer| {
+        let crate::file_dialog::FileDialogAnswer::Paths(paths) = answer else {
+            return Err("choose a file on disk: local models run in the desktop app".to_string());
+        };
+        let chosen = paths.into_iter().next().ok_or_else(|| crate::file_dialog::CANCELLED.to_string())?;
+        if let Some(d) = app.ui.dialogs.iter_mut().find(|d| owns(&d.fields))
+            && let Some(section) = d.fields.get_mut("values").and_then(|v| v.get_mut("localModels")).and_then(Value::as_object_mut)
+        {
+            section.insert(key.to_string(), json!(chosen));
+        }
+        Ok(json!({"path": chosen}))
+    });
+    if let Err(e) = asked
+        && e != crate::file_dialog::CANCELLED
+    {
+        app.ui.status = e;
+        app.ui.status_error = true;
+    }
+}
+
 /// Generic editor for a section's fields: checkboxes, dropdowns for choices, colour swatches,
 /// number fields with the preference's range, text fields.
 fn section_fields(
@@ -1380,6 +1495,17 @@ fn section_fields(
                     });
                     obj.insert(k, json!(format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])));
                     let _ = color_of(s);
+                }
+                Value::String(s) if is_model_path(&path) => {
+                    ui.label(RichText::new(tl!(&label)).color(t.text_dim));
+                    let mut s = s.clone();
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut s).desired_width(176.0));
+                        if crate::widgets::secondary_button(ui, tl!("Browse…"), 80.0).clicked() {
+                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(BROWSE_ID), path.clone()));
+                        }
+                    });
+                    obj.insert(k, json!(s));
                 }
                 Value::String(s) => {
                     ui.label(RichText::new(tl!(&label)).color(t.text_dim));

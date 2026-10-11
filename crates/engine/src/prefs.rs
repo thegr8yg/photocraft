@@ -82,6 +82,16 @@ choice!(
     /// platforms ignore it.
     LinuxDisplayServer { Auto = "auto", X11 = "x11" } default Auto
 );
+choice!(
+    /// Hardware local models may use: `auto` = a GPU provider of the ONNX Runtime library when it
+    /// has one, else the CPU.
+    LocalDevice { Auto = "auto", Cpu = "cpu" } default Auto
+);
+choice!(
+    /// How Edit › Content-Aware Fill fills when the command is not told: PhotoCraft's patch
+    /// completion, or the LaMa neural model (needs Local Models set up).
+    FillMethod { Classical = "classical", Lama = "lama" } default Classical
+);
 choice!(UiFontSize { Tiny = "tiny", Small = "small", Medium = "medium", Large = "large" } default Small);
 choice!(LogDestination { Metadata = "metadata", TextFile = "textFile", Both = "both" } default Metadata);
 choice!(LogDetail { SessionsOnly = "sessionsOnly", Concise = "concise", Detailed = "detailed" } default Concise);
@@ -791,6 +801,30 @@ impl Default for PlugIns {
     }
 }
 
+/// Local machine-learning models (Edit › Preferences › Local Models). Nothing here is downloaded
+/// or uploaded by PhotoCraft: the user installs ONNX Runtime and a LaMa ONNX file and points at
+/// them (docs/local-models.md).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LocalModels {
+    /// The ONNX Runtime library (`libonnxruntime.so`, `onnxruntime.dll`, `libonnxruntime.dylib`).
+    /// Empty: `PHOTOCRAFT_ORT_LIB`, then the system's library search path.
+    pub onnx_runtime_library: String,
+    /// The LaMa model, an ONNX export with an image and a mask input.
+    pub lama_model: String,
+    /// The SHA-256 the model file must have (optional; empty = accept any file).
+    pub lama_sha256: String,
+    pub device: LocalDevice,
+    /// Method Content-Aware Fill uses when a command does not name one.
+    pub content_aware_fill: FillMethod,
+}
+
+impl Default for LocalModels {
+    fn default() -> Self {
+        Self { onnx_runtime_library: String::new(), lama_model: String::new(), lama_sha256: String::new(), device: LocalDevice::Auto, content_aware_fill: FillMethod::Classical }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TypePrefs {
@@ -913,6 +947,7 @@ pub struct Preferences {
     pub units_and_rulers: UnitsAndRulers,
     pub guides_grid_and_slices: GuidesGridAndSlices,
     pub plug_ins: PlugIns,
+    pub local_models: LocalModels,
     #[serde(rename = "type")]
     pub type_: TypePrefs,
     pub enhanced_controls: EnhancedControls,
@@ -945,7 +980,7 @@ pub struct Preferences {
 }
 
 /// Preferences dialog sections in Photoshop's order: (id, title).
-pub const SECTIONS: [(&str, &str); 18] = [
+pub const SECTIONS: [(&str, &str); 19] = [
     ("general", "General"),
     ("interface", "Interface"),
     ("workspace", "Workspace"),
@@ -960,6 +995,7 @@ pub const SECTIONS: [(&str, &str); 18] = [
     ("unitsAndRulers", "Units & Rulers"),
     ("guidesGridAndSlices", "Guides, Grid & Slices"),
     ("plugIns", "Plug-ins"),
+    ("localModels", "Local Models"),
     ("type", "Type"),
     ("enhancedControls", "Enhanced Controls"),
     ("rawDefaults", "Camera Raw Defaults"),
@@ -1066,6 +1102,8 @@ pub fn choices(path: &str) -> Option<&'static [&'static str]> {
         "performance.gpuBackend" => GpuBackend::NAMES,
         "performance.linuxDisplayServer" => LinuxDisplayServer::NAMES,
         "performance.renderingMode" => RenderingMode::NAMES,
+        "localModels.device" => LocalDevice::NAMES,
+        "localModels.contentAwareFill" => FillMethod::NAMES,
         _ => return None,
     })
 }
@@ -1180,6 +1218,9 @@ fn check_value(path: &str, v: &Value) -> std::result::Result<(), String> {
         if !c.contains(&s) {
             return Err(format!("`{path}` must be one of {} (got `{s}`)", c.join("|")));
         }
+    }
+    if path.starts_with("localModels.") && choices(path).is_none() && v.as_str().is_none_or(|s| s.len() > 4096 || s.contains('\0')) {
+        return Err(format!("`{path}` must be text of at most 4096 characters"));
     }
     if path == "interface.language" {
         let ok = v.as_str().is_some_and(|s| !s.is_empty() && s.len() <= 16 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
@@ -1881,6 +1922,7 @@ pub fn specs() -> Vec<CommandSpec> {
         section!("edit.preferences.unitsAndRulers", "Units & Rulers…"),
         section!("edit.preferences.guidesGridAndSlices", "Guides, Grid & Slices…"),
         section!("edit.preferences.plugIns", "Plug-ins…"),
+        section!("edit.preferences.localModels", "Local Models…"),
         section!("edit.preferences.type", "Type…"),
         section!("edit.preferences.enhancedControls", "Enhanced Controls…"),
         section!("edit.preferences.rawDefaults", "Camera Raw…"),
