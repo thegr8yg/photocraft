@@ -1,6 +1,6 @@
 # Where PhotoCraft falls short of Photoshop
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-10 · **Change:** major (first version: every known shortfall ranked, from the 2026-10-10 re-measure) · **Target:** Adobe Photoshop 2026
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (G15: first ML slice, opt-in local LaMa Content-Aware Fill, not yet verified on a real model) · **Target:** Adobe Photoshop 2026
 
 Every known shortfall against Photoshop 2026 (27.11.0), one entry each, ranked by user impact
 on the way to beta. This is the work list agents pick from: take the highest-ranked entry that
@@ -101,8 +101,12 @@ what an agent can't finish alone.
 
 ### G15. AI and generative features
 - **Missing:** Generative Fill and Expand, Generative Upscale, Neural Filters, Sky Replacement,
-  Super Zoom, ML Select Subject/Sky. There is no ML runtime (AUTO-219-7). Classical substitutes
-  exist (GrabCut/max-flow selection, Remove tool by non-local patch completion).
+  Super Zoom, ML Select Subject/Sky. Classical substitutes exist (GrabCut/max-flow selection,
+  Remove tool by non-local patch completion). 2026-10-11: first slice, an opt-in local LaMa
+  Content-Aware Fill (`crates/ml`, ONNX Runtime loaded at run time, Preferences › Local Models;
+  [local-models.md](local-models.md)). It is tested with a stand-in model only, not yet run
+  against a real LaMa file, and covers no other model, so AUTO-219-7 (managed local models,
+  subject select, background removal) stays open.
 - **Evidence:** Photoshop's `Required/UXP` ships the Neural Filters gallery and its `.kys` has
   a Neural Filters taskspace; users ask for local models (#2313, #1996, #2682).
 - **Estimate:** 300–600 h. **Human:** owner decision #41 (model licences, local vs remote).
@@ -211,5 +215,6 @@ what an agent can't finish alone.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-11 | minor | G15: opt-in local LaMa Content-Aware Fill landed as the first ML slice (unverified on a real model); no estimate changed |
 | 2026-10-10 | minor | Checked against the alpha gate (no alpha blockers); #2374 marked closed |
 | 2026-10-10 | major | First version, from the full re-measure against Photoshop 2026 27.11.0 and the open issues |
